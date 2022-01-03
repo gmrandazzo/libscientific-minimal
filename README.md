@@ -91,9 +91,7 @@ Dependencies
 
 The required dependencies to use libscientific are:
 
-- lapack/blas library or a fortran compiler
 - c compiler (gcc or clang for osx)
-- cmake
 
 Install
 =======
