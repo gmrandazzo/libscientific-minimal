@@ -37,11 +37,11 @@ typedef struct{
  * Output:
  *  - selecttions: vector of id selected..
  */
-void MDC(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads, ssignal *s);
+void MDC(matrix* m, size_t n, int metric, uivector** selections, ssignal *s);
 
 
 /*
- * MaxMin Dissimilarity Method
+ * Max Dissimilarity Method
  *
  * Input:
  * - m: matrix of data in coordinate
@@ -50,8 +50,7 @@ void MDC(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads
  * Output:
  * - selections: vector of id selected
  */
-void MaxDis(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads, ssignal *s);
-void MaxDis_Fast(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads, ssignal *s);
+void MaxDis(matrix* m, size_t n, int metric, uivector** selections, ssignal *s);
 
 
 /*
@@ -111,7 +110,7 @@ void DelHGMBins(hgmbins **bins_id);
  * Output:
  * - selections: vector of id selected
  */
-void KMeansppCenters(matrix *m, size_t n, uivector **selections, int nthreads, ssignal *s);
+void KMeansppCenters(matrix *m, size_t n, uivector **selections, ssignal *s);
 
 /*
  * KMeans Clustering
@@ -126,11 +125,11 @@ void KMeansppCenters(matrix *m, size_t n, uivector **selections, int nthreads, s
  * Output:
  * - clusters: vector of size m->row where for each object is defined the cluster membership
  */
-void KMeans(matrix* m, size_t nclusters, int initializer, uivector** clusters, matrix **centroids, size_t nthreads, ssignal *s);
+void KMeans(matrix* m, size_t nclusters, int initializer, uivector** clusters, matrix **centroids, ssignal *s);
 
-void PruneResults(matrix *m, matrix *centroids, size_t nmaxobj, int type, uivector* clusters, size_t nthreads);
+void PruneResults(matrix *m, matrix *centroids, size_t nmaxobj, int type, uivector* clusters);
 
-void KMeansRandomGroupsCV(matrix* m, size_t maxnclusters, int initializer, size_t groups, size_t iterations, dvector **ssdist, size_t nthreads, ssignal *s);
+void KMeansRandomGroupsCV(matrix* m, size_t maxnclusters, int initializer, size_t groups, size_t iterations, dvector **ssdist, ssignal *s);
 
 enum LinkageType {
   single_linkage = 0,

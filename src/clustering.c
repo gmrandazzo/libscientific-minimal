@@ -21,7 +21,6 @@
 #include <math.h>
 #include <string.h>
 #include <ctype.h>
-#include <pthread.h>
 
 //#ifdef DEBUG
 #include <time.h>
@@ -82,68 +81,18 @@ void *MDCWorker(void *arg_)
 /*
  *
  */
-void MDC(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads, ssignal *s)
+void MDC(matrix* m, size_t n, int metric, uivector** selections, ssignal *s)
 {
   size_t i, j, k, l, mdc, nmdc, th;
   double d, dist;
   dvector *vectinfo, *rankvector;
   matrix *tmprank;
 
-  pthread_t *threads;
-  mdc_th_args *args;
-
   NewDVector(&vectinfo, m->row);
   NewDVector(&rankvector, m->row);
   DVectorSet(vectinfo, 0.f);
   NewMatrix(&tmprank, m->row, 2);
 
-
-  threads = xmalloc(sizeof(pthread_t)*nthreads);
-  args = xmalloc(sizeof(mdc_th_args)*nthreads);
-  /* reference some memory data */
-  for(th = 0; th < nthreads; th++){
-    args[th].m = m;
-    args[th].tmprank = tmprank;
-    args[th].metric = metric;
-  }
-
-  /* MULTI THREAD IMPLEMENTATION */
-  matrix *dm;
-  NewMatrix(&dm, m->row, m->row);
-  if(metric == 0){
-    EuclideanDistance(m, m, &dm, nthreads);
-  }
-  else if(metric == 1){
-    ManhattanDistance(m, m, &dm, nthreads);
-  }
-  else{
-    CosineDistance(m, m, &dm, nthreads);
-  }
-
-  for(i = 0; i < m->row; i++){
-    for(k = 0; k < m->row; k++){
-      tmprank->data[k][0] = dm->data[k][i];
-      tmprank->data[k][1] = k;
-    }
-
-    MatrixSort(tmprank, 0);
-
-    //Calculate the reciprocal of the rank
-    d = 2;
-    for(k = 0; k < tmprank->row; k++){
-      if(k == i){
-        vectinfo->data[k] += 1;
-      }
-      else{
-        j = tmprank->data[k][1];
-        vectinfo->data[j] += 1/d;
-        d += 1;
-      }
-    }
-  }
-  DelMatrix(&dm);
-
-  /* SINGLE THREAD IMPLEMENTATION
 
   for(i = 0; i < m->row; i++){
     for(k = 0; k < m->row; k++){
@@ -193,8 +142,6 @@ void MDC(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads
       }
     }
   }
-  */
-
 
   /*
   puts("vectinifo");
@@ -238,29 +185,6 @@ void MDC(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads
 
       UIVectorAppend(selections, mdc);
       /*Recalculate the disances of the MDC to all the other compounds and the reciprocal ranks as aboce subtract these reciprocal ranks from 1 and store in the rank vector R*/
-      /* MULTITHREAD IMPLEMENTATION */
-      size_t step = (size_t)ceil((double)m->row/(double)nthreads);
-      size_t from = 0, to = step;
-      for(th = 0; th < nthreads; th++){
-        args[th].from = from;
-        args[th].to = to;
-        args[th].mdc = mdc;
-        pthread_create(&threads[th], NULL, MDCWorker, (void*) &args[th]);
-
-        from = to;
-        if(from+step > m->row){
-          to = m->row;
-        }
-        else{
-          to+=step;
-        }
-      }
-
-      for(th = 0; th < nthreads; th++){
-        pthread_join(threads[th], NULL);
-      }
-
-      /* SINGLE TRHEAD IMPLEMENTATION
       for(k = 0; k < m->row; k++){
         dist = 0.f;
         // EUCLIDEAN DISTANCE
@@ -289,7 +213,6 @@ void MDC(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads
         }
         tmprank->data[k][0] = dist; tmprank->data[k][1] = k;
       }
-      */
 
       /*
       puts("tmpvector wich is rankvector");
@@ -365,17 +288,17 @@ void MDC(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads
     }
   }
 
-  xfree(threads);
-  xfree(args);
   DelMatrix(&tmprank);
   DelDVector(&rankvector);
   DelDVector(&vectinfo);
 }
 
+
+
 /*
  * MaxDis object selection.
  */
-void MaxDis(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads, ssignal *s)
+void MaxDis(matrix* m, size_t n, int metric, uivector** selections, ssignal *s)
 {
   size_t i, j, l, nobj, ntotobj;
   double dis;
@@ -467,14 +390,14 @@ void MaxDis(matrix* m, size_t n, int metric, uivector** selections, size_t nthre
         initMatrix(&distances);
 
         if(metric == 0){
-          EuclideanDistance(m1, m2, &distances, nthreads);
+          EuclideanDistance(m1, m2, &distances);
         }
         else if(metric == 1){
-          ManhattanDistance(m1, m2, &distances, nthreads);
+          ManhattanDistance(m1, m2, &distances);
         }
         else{
           printf("Ciao\n");
-          CosineDistance(m1, m2, &distances, nthreads);
+          CosineDistance(m1, m2, &distances);
           PrintMatrix(distances);
         }
 
@@ -537,136 +460,6 @@ void MaxDis(matrix* m, size_t n, int metric, uivector** selections, size_t nthre
   DelMatrix(&m2);
 }
 
-/*
- * Fast implementation but can pose some memory problems with large datasets!
- */
-void MaxDis_Fast(matrix* m, size_t n, int metric, uivector** selections, size_t nthreads, ssignal *s)
-{
-  size_t i, j, indx, nobj;
-  double dis;
-  dvector *distances;
-  uivector *id;
-  dvector *c, *mindists;
-
-  NewUIVector(&id, m->row);
-  /* Store into the id array the original point positions */
-  for(i = 0; i < m->row; i++)
-    id->data[i] = i;
-
-  initDVector(&distances);
-  /*
-   * Calculate a square distance matrix
-   * Slow process!
-   */
-  if(metric == 0){
-    EuclideanDistanceCondensed(m, &distances, nthreads);
-  }
-  else if(metric == 1){
-    ManhattanDistanceCondensed(m, &distances, nthreads);
-  }
-  else{
-    CosineDistanceCondensed(m, &distances, nthreads);
-  }
-
-  /* select the faraway compound from centroid */
-  NewDVector(&c, m->col);
-  for(i = 0; i < m->row; i++){
-    for(j = 0; j < m->col; j++){
-      c->data[j] += m->data[i][j];
-    }
-  }
-
-  for(j = 0; j < m->col; j++){
-    c->data[j] /= (double)m->row;
-  }
-
-  int far_away = -1;
-  double far = 0.f;
-  for(i = 0; i < m->row; i++){
-    double dst = 0.f;
-    for(j = 0; j < m->col; j++){
-      dst += square(c->data[j] - m->data[i][j]);
-    }
-
-    dst = sqrt(dst);
-
-    if(far_away > -1){
-      far = dst;
-    }
-    else{
-      if(dst > far){
-        far = dst;
-        far_away = i;
-      }
-      else{
-        continue;
-      }
-    }
-  }
-  DelDVector(&c);
-
-  /* Append the far away compound to the final selection */
-  UIVectorAppend(selections, far_away);
-
-  /* Remove the selected point from the position list */
-  UIVectorRemoveAt(&id, far_away);
-
-  /*
-   * The next object to be selected is always as distant as possible
-   * from already selected objects. Hence iterate in the distance matrix
-   * using the remaining ids.
-   */
-
-  /* ntob = 1 because we have already selected the first object, the far away objcet*/
-  for(nobj = 1; nobj < n; nobj++){
-    if(s != NULL && (*s) == SIGSCIENTIFICRUN){
-      /* Select the minumum distance of all remaining objects
-       * from the already selected points
-       */
-      NewDVector(&mindists, id->size);
-      for(i = 0; i < id->size; i++){
-        size_t ii = id->data[i];
-        size_t jj = (*selections)->data[0];
-        indx = square_to_condensed_index(ii, jj, m->row);
-        dis = distances->data[indx];
-        for(j = 1; j < (*selections)->size; j++){
-          jj = (*selections)->data[j];
-          indx = square_to_condensed_index(ii, jj, m->row);
-          if(distances->data[indx] < dis){
-            dis = distances->data[indx];
-          }
-          else{
-            continue;
-          }
-        }
-        mindists->data[i] = dis;
-      }
-
-      /*
-       * From the final smallest distance list select the maximum distant objects
-       */
-      j = 0;
-      for(i = 1; i < mindists->size; i++){
-        if(mindists->data[i] > mindists->data[j]){
-          j = i;
-        }
-        else{
-          continue;
-        }
-      }
-
-      /* l is the max min object to select */
-      UIVectorAppend(selections, id->data[j]);
-      UIVectorRemoveAt(&id, j);
-    }
-    else{
-      break;
-    }
-    DelDVector(&mindists);
-  }
-  DelDVector(&distances);
-  DelUIVector(&id);
-}
 
 void NewHyperGridMap(HyperGridModel **hgm)
 {
@@ -891,15 +684,12 @@ void *kmppDistanceWorker(void *arg_)
   return 0;
 }
 
-void KMeansppCenters(matrix *m, size_t n, uivector **selections, int nthreads, ssignal *s)
+void KMeansppCenters(matrix *m, size_t n, uivector **selections, ssignal *s)
 {
-  size_t i, j;
+  size_t i, j, k;
   double dist, tmp, y, A, B;
-  dvector *D, *D_square;
+  dvector *D, *D_square, *D_min;
   size_t q = n; /*get the number of clusters*/
-
-  pthread_t *threads = xmalloc(sizeof(pthread_t)*nthreads);
-  kmpp_th_args *arg = xmalloc(sizeof(kmpp_th_args)*nthreads);
 
   NewDVector(&D, m->row); /* vettore distanza di tutti i punti. Per ogni punto c'è un valore di distanza */
   NewDVector(&D_square, m->row); /* vettore distanza di tutti i punti al quadrato.*/
@@ -915,8 +705,6 @@ void KMeansppCenters(matrix *m, size_t n, uivector **selections, int nthreads, s
       break;
     }
     else{
-      /*
-      SINGLE THREAD
       for(i = 0; i < m->row; i++){
         initDVector(&D_min);
         for(k = 0; k < (*selections)->size; k++){
@@ -943,27 +731,7 @@ void KMeansppCenters(matrix *m, size_t n, uivector **selections, int nthreads, s
         //DVectorAppend(&D, dist);
         DelDVector(&D_min);
       }
-      */
-      size_t nobj = ceil(m->row/(double)nthreads);
-      size_t from = 0;
-      for(i = 0; i < nthreads; i++){
-        arg[i].m = m;
-        arg[i].selections = (*selections);
-        arg[i].D = D;
-        arg[i].from = from;
-        if(from+nobj > m->row){
-          from = m->row;
-        }
-        else{
-          from += nobj;
-        }
-        arg[i].to = from;
-        pthread_create(&threads[i], NULL, kmppDistanceWorker, (void*) &arg[i]);
-      }
-
-      for(i = 0; i < nthreads; i++){
-        pthread_join(threads[i], NULL);
-      }
+      
 
       /* Step 3 Calculate the square of distances and store in
       * a vector and in a sum (dist)
@@ -1013,12 +781,10 @@ void KMeansppCenters(matrix *m, size_t n, uivector **selections, int nthreads, s
   }
   DelDVector(&D);
   DelDVector(&D_square);
-  xfree(threads);
-  xfree(arg);
 }
 
 /*This function rank and get the nmaxobj near or far from centroids */
-void PruneResults(matrix *m, matrix *centroids, size_t nmaxobj, int type, uivector* clusters, size_t nthreads)
+void PruneResults(matrix *m, matrix *centroids, size_t nmaxobj, int type, uivector* clusters)
 {
   size_t i, j, n, k, l;
   double var;
@@ -1052,7 +818,7 @@ void PruneResults(matrix *m, matrix *centroids, size_t nmaxobj, int type, uivect
     }
 
     initMatrix(&distmx);
-    EuclideanDistance(subcentroid, submx, &distmx, nthreads);
+    EuclideanDistance(subcentroid, submx, &distmx);
 
     if(type == 0){ /* Near Object */
       for(j = 0; j < nmaxobj; j++){
@@ -1193,38 +959,6 @@ void *getLabelsWorker(void *arg_)
   return 0;
 }
 
-/* For each element in the dataset, chose the closest centroid.
- * Make that centroid the element's label.
- */
-void getLabels_(matrix *m, matrix *centroids, uivector *labels, int nthreads)
-{
-  size_t i, from;
-  pthread_t *threads = xmalloc(sizeof(pthread_t)*nthreads);
-  labels_th_arg *arg = xmalloc(sizeof(labels_th_arg)*nthreads);
-  int nobj = ceil(m->row/(double)nthreads);
-  from = 0;
-  for(i = 0; i < nthreads; i++){
-    arg[i].m = m;
-    arg[i].centroids = centroids;
-    arg[i].labels = labels;
-    arg[i].from = from;
-    if(from+nobj > m->row){
-      from = m->row;
-    }
-    else{
-      from += nobj;
-    }
-    arg[i].to = from;
-    pthread_create(&threads[i], NULL, getLabelsWorker, (void*) &arg[i]);
-  }
-
-  for(i = 0; i < nthreads; i++){
-    pthread_join(threads[i], NULL);
-  }
-
-  xfree(threads);
-  xfree(arg);
-}
 
 /* For each element in the dataset, chose the closest centroid.
  * Make that centroid the element's label.
@@ -1304,7 +1038,7 @@ void getCentroids(matrix *m, uivector *cluster_labels, matrix **centroids)
   DelMatrix(&new_centroids);
 }
 
-void KMeans(matrix* m, size_t nclusters, int initializer, uivector** cluster_labels, matrix **_centroids_, size_t nthreads, ssignal *s)
+void KMeans(matrix* m, size_t nclusters, int initializer, uivector** cluster_labels, matrix **_centroids_, ssignal *s)
 {
   size_t i, j, it;
   matrix *centroids, *oldcentroids;
@@ -1331,13 +1065,13 @@ void KMeans(matrix* m, size_t nclusters, int initializer, uivector** cluster_lab
     }
   }
   else if(initializer == 1){ /* KMeansppCenters */
-    KMeansppCenters(m, nclusters, &pre_centroids, nthreads, s);
+    KMeansppCenters(m, nclusters, &pre_centroids, s);
   }
   else if(initializer == 2){ /* MDC */
-    MDC(m, nclusters, 0, &pre_centroids, nthreads, s);
+    MDC(m, nclusters, 0, &pre_centroids, s);
   }
   else{ /*if(initializer == 3){  MaxDis */
-    MaxDis(m, nclusters, 0, &pre_centroids, nthreads, s);
+    MaxDis(m, nclusters, 0, &pre_centroids, s);
   }
 
   /* else personal centroid configuration */
@@ -1367,15 +1101,14 @@ void KMeans(matrix* m, size_t nclusters, int initializer, uivector** cluster_lab
     t = clock();
     #endif
 
-    //getLabels(m, centroids, (*cluster_labels));
-    getLabels_(m, centroids, (*cluster_labels), nthreads);
+    getLabels(m, centroids, (*cluster_labels));
 
     #ifdef DEBUG
     t = clock() - t;
     #endif
 
     #ifdef DEBUG
-    printf("getLabels_: %f\n", ((double)t)/CLOCKS_PER_SEC);
+    printf("getLabels: %f\n", ((double)t)/CLOCKS_PER_SEC);
     t = clock();
     #endif
 
@@ -1394,7 +1127,7 @@ void KMeans(matrix* m, size_t nclusters, int initializer, uivector** cluster_lab
   DelMatrix(&oldcentroids);
 }
 
-void KMeansRandomGroupsCV(matrix* m, size_t maxnclusters, int initializer, size_t groups, size_t iterations, dvector** ssdist, size_t nthreads, ssignal *s)
+void KMeansRandomGroupsCV(matrix* m, size_t maxnclusters, int initializer, size_t groups, size_t iterations, dvector** ssdist, ssignal *s)
 {
 
   size_t i, j, k, g, n, a, iterations_;
@@ -1516,10 +1249,10 @@ void KMeansRandomGroupsCV(matrix* m, size_t maxnclusters, int initializer, size_
           initMatrix(&centroids);
           initUIVector(&clusters);
 
-          KMeans(subm, j, initializer, &clusters, &centroids, nthreads, s);
+          KMeans(subm, j, initializer, &clusters, &centroids, s);
 
           initMatrix(&distances);
-          EuclideanDistance(centroids, predm, &distances, nthreads);
+          EuclideanDistance(centroids, predm, &distances);
 
           #ifdef DEBUG
           puts("Centroids");
@@ -1606,10 +1339,10 @@ void HierarchicalClustering(matrix* _m, size_t nclusters, uivector** _clusters, 
   initDVector(&clusterdist);
 
   if(linktype > 2){
-    SquaredEuclideanDistance(_m, _m, &distmx, nthreads);
+    SquaredEuclideanDistance(_m, _m, &distmx);
   }
   else{
-    EuclideanDistance(_m, _m, &distmx, nthreads);
+    EuclideanDistance(_m, _m, &distmx);
   }
 
   for(i = 0; i < _m->row; i++){

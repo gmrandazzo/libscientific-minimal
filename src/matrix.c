@@ -23,7 +23,6 @@
 #include <string.h>
 #include <math.h>
 #include <complex.h>
-#include <pthread.h>
 #include "numeric.h"
 #include "algebra.h"
 
