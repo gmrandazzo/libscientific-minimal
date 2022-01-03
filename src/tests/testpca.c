@@ -21,20 +21,20 @@
 #include "numeric.h"
 #include "pca.h"
 #include "pca.h"
-#include "scientificinfo.h"
 
 void test7()
 {
+  size_t i, j;
   matrix *m;
   PCAMODEL *model;
-
   int nobj = 32000;
   int nvars = 200;
+  
   NewMatrix(&m, nobj, nvars);
 
   srand(nobj);
-  for(size_t i = 0; i < nobj; i++){
-    for(size_t j = 0; j < nvars; j++){
+  for(i = 0; i < nobj; i++){
+    for(j = 0; j < nvars; j++){
       m->data[i][j] = randDouble(0,20);
     }
   }

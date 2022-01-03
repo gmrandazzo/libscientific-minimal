@@ -22,13 +22,10 @@
 #include <stdbool.h>
 #include <string.h>
 #include <math.h>
-#include <complex.h>
 #include "numeric.h"
 #include "algebra.h"
 
 #include "memwrapper.h"
-
-#define MAXTHREADS 256
 
 void initMatrix(matrix **m)
 {
@@ -99,7 +96,7 @@ void MatrixCheck(matrix *m)
   size_t i, j;
   for(i = 0; i < m->row; i++){
     for(j = 0; j < m->col; j++){
-      if(_isnan_(m->data[i][j]) || !isfinite(m->data[i][j])){
+      if(_isnan_(m->data[i][j]) || !_isfinite_(m->data[i][j])){
         m->data[i][j] = MISSING;
       }
     }
@@ -584,42 +581,6 @@ void MatrixDVectorDotProduct(matrix *mx, dvector *v, dvector *p)
   }
 }
 
-/* MultiThreadMatrixDVectorDotProduct for large data! */
-typedef struct{
-  size_t from, to; /*used for slicing*/
-  matrix *mx; /* shared between threads */
-  dvector *v; /* shared between threads */
-  dvector *res; /* value modified in thread */
-} tharg;
-
-void *MatrixDVectorDotProductWorker(void *arg_){
-  tharg *arg;
-  double res;
-  arg = (tharg*) arg_;
-  size_t i, j;
-
-  for(i = arg->from; i < arg->to; i++){
-    arg->res->data[i] = 0.f;
-    for(j = 0; j < arg->mx->col; j++){
-      if(FLOAT_EQ(arg->mx->data[i][j], MISSING, 1e-1) ||
-         FLOAT_EQ(arg->v->data[j], MISSING, 1e-1)){
-        continue;
-      }
-      else{
-        res = arg->mx->data[i][j] * arg->v->data[j];
-        if(_isnan_(res) || _isinf_(res)){
-          continue;
-        }
-        else{
-          arg->res->data[i] += res;
-        }
-      }
-    }
-  }
-  return NULL;
-}
-
-
 /*
  * p[j] =   Σ v[i] * mx[i][j]
  */
@@ -653,34 +614,6 @@ void DVectorMatrixDotProduct(matrix *mx, dvector *v, dvector *p)
     fflush(stdout);
     abort();
   }
-}
-
-
-void *DVectorMatrixDotProductWorker(void *arg_)
-{
-  tharg *arg;
-  double res;
-  arg = (tharg*) arg_;
-  size_t i, j;
-
-  for(j = arg->from; j < arg->to; j++){
-    for(i = 0; i < arg->mx->row; i++){
-      if(FLOAT_EQ(arg->v->data[i], MISSING, 1e-1) ||
-         FLOAT_EQ(arg->mx->data[i][j], MISSING, 1e-1)){
-           continue;
-      }
-      else{
-        res = arg->v->data[i] * arg->mx->data[i][j];
-        if(_isnan_(res) || _isinf_(res)){
-          continue;
-        }
-        else{
-          arg->res->data[j] += res;
-        }
-      }
-    }
-  }
-  return NULL;
 }
 
 void DVectorTrasposedDVectorDotProduct(dvector *v1, dvector *v2, matrix *m)
@@ -960,10 +893,10 @@ void MeanCenteredMatrix(matrix *mx, matrix *mxc)
 
 void PearsonCorrelMatrix(matrix* mxsrc, matrix* mxdst)
 {
-  ResizeMatrix(&mxdst, mxsrc->col, mxsrc->col);
   size_t i, j, k;
   double n, a, b, xres, yres;
   dvector *mean;
+  ResizeMatrix(&mxdst, mxsrc->col, mxsrc->col);
   initDVector(&mean);
   MatrixColAverage(mxsrc, &mean);
   for(k = 0; k < mxsrc->col; k++){
@@ -997,11 +930,11 @@ void PearsonCorrelMatrix(matrix* mxsrc, matrix* mxdst)
 
 void SpearmanCorrelMatrix(matrix* mxsrc, matrix* mxdst)
 {
-  ResizeMatrix(&mxdst, mxsrc->col, mxsrc->col);
   size_t i, j, k, l;
   matrix *rankmx;
   dvector *vtosort;
   double n;
+  ResizeMatrix(&mxdst, mxsrc->col, mxsrc->col);
   NewMatrix(&rankmx, mxsrc->row, 4);
   NewDVector(&vtosort, mxsrc->row);
   for(k = 0; k < mxsrc->col; k++){
@@ -1323,8 +1256,8 @@ void MatrixCovariance(matrix* mx, matrix** cm)
 /* Transform a matrix into a logaritmic matrix */
 void Matrix2LogMatrix(matrix *mx_in, matrix **mx_out)
 {
-  ResizeMatrix(mx_out, mx_in->row, mx_in->col);
   size_t i, j;
+  ResizeMatrix(mx_out, mx_in->row, mx_in->col);
   for(i = 0; i < mx_in->row; i++){
     for(j = 0; j < mx_in->col; j++){
       (*mx_out)->data[i][j] = log10(mx_in->data[i][j]+1);
@@ -1335,8 +1268,8 @@ void Matrix2LogMatrix(matrix *mx_in, matrix **mx_out)
 /* Transform a matrix into a SQUARE matrix */
 void Matrix2SquareMatrix(matrix *mx_in, matrix **mx_out)
 {
-  ResizeMatrix(mx_out, mx_in->row, mx_in->col);
   size_t i, j;
+  ResizeMatrix(mx_out, mx_in->row, mx_in->col);
   for(i = 0; i < mx_in->row; i++)
     for(j = 0; j < mx_in->col; j++)
       (*mx_out)->data[i][j] = square(mx_in->data[i][j]);
@@ -1345,8 +1278,8 @@ void Matrix2SquareMatrix(matrix *mx_in, matrix **mx_out)
 /* Transform a matrix into a SQRT matrix */
 void Matrix2SQRTMatrix(matrix *mx_in, matrix **mx_out)
 {
-  ResizeMatrix(mx_out, mx_in->row, mx_in->col);
   size_t i, j;
+  ResizeMatrix(mx_out, mx_in->row, mx_in->col);
   for(i = 0; i < mx_in->row; i++)
     for(j = 0; j < mx_in->col; j++)
       (*mx_out)->data[i][j] = sqrt(mx_in->data[i][j]);
@@ -1450,7 +1383,7 @@ double Matrixnorm(matrix *mx)
   for(j = 0; j < mx->col; j++){
     for(i = 0; i < mx->row; i++){
       v = mx->data[i][j];
-      if(_isnan_(v) || !isfinite(v)){
+      if(_isnan_(v) || !_isfinite_(v)){
         continue;
       }
       else{

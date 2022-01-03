@@ -27,6 +27,4 @@ void *xmalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
 void xfree(void *ptr);
 
-void GetNProcessor(size_t *nprocs_online, size_t *nprocs_max);
-
 #endif

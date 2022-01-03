@@ -32,6 +32,11 @@
 #define _isnan_(a) (a != a)
 #define _isinf_(a) (!_isnan_(a) && _isnan_(a - a))
 #define _pi_ 3.14159265358979323846264338327950288419716939937510
+#define _isfinite_(a) (!_isnan_(a) && !_isinf_(a))
+
+#ifndef NAN
+# define NAN 0x7fc00000UL
+#endif
 
 #define MISSING 99999999
 

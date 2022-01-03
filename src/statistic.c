@@ -361,19 +361,25 @@ void YatesVarEffect(matrix* mx, dvector* veff)
 void ROC(dvector *y_true, dvector *y_score,  matrix **roc, double *auc)
 {
   size_t i;
+  size_t n_tp;
+  size_t n_tn;
+  size_t tp;
+  size_t fp;
   matrix *yy;
+  dvector *roc_row;
+  
   initMatrix(&yy);
   MatrixAppendCol(&yy, y_true);
   MatrixAppendCol(&yy, y_score);
   MatrixReverseSort(yy, 1); /* sort by y_score*/
 
-  dvector *roc_row;
+  
   NewDVector(&roc_row, 2);
   DVectorSet(roc_row, 0.0);
   MatrixAppendRow(roc, roc_row);
   /*Calculate the number of tp and tn*/
-  size_t n_tp = 0;
-  size_t n_tn = 0;
+  n_tp = 0;
+  n_tn = 0;
   for(i = 0; i < yy->row; i++){
     if(FLOAT_EQ(yy->data[i][0], MISSING, 1e-1)){
       continue;
@@ -387,8 +393,8 @@ void ROC(dvector *y_true, dvector *y_score,  matrix **roc, double *auc)
     }
   }
 
-  size_t tp = 0;
-  size_t fp = 0;
+  tp = 0;
+  fp = 0;
   for(i = 0; i < yy->row; i++){
     if(FLOAT_EQ(yy->data[i][0], MISSING, 1e-1)){
       continue;
@@ -421,20 +427,26 @@ void ROC(dvector *y_true, dvector *y_score,  matrix **roc, double *auc)
 void PrecisionRecall(dvector *y_true, dvector *y_score,  matrix **pr, double *ap)
 {
   size_t i;
+  size_t n_tp;
+  size_t n_tn;
+  size_t tp;
+  size_t fp;
+  
   matrix *yy;
+  dvector *pr_row;
+
   initMatrix(&yy);
   MatrixAppendCol(&yy, y_true);
   MatrixAppendCol(&yy, y_score);
   MatrixReverseSort(yy, 1); /* sort by y_score*/
 
-  dvector *pr_row;
   NewDVector(&pr_row, 2);
   pr_row->data[0] = 0.f; // recall
   pr_row->data[1] = 1.f; // precision
   MatrixAppendRow(pr, pr_row);
   /*Calculate the number of tp and tn*/
-  size_t n_tp = 0;
-  size_t n_tn = 0;
+  n_tp = 0;
+  n_tn = 0;
   for(i = 0; i < yy->row; i++){
     if(FLOAT_EQ(yy->data[i][0], MISSING, 1e-1)){
       continue;
@@ -448,8 +460,8 @@ void PrecisionRecall(dvector *y_true, dvector *y_score,  matrix **pr, double *ap
     }
   }
 
-  size_t tp = 0;
-  size_t fp = 0;
+  tp = 0;
+  fp = 0;
   for(i = 0; i < yy->row; i++){
     if(FLOAT_EQ(yy->data[i][0], MISSING, 1e-1)){
       continue;
